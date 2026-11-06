@@ -231,13 +231,17 @@
                     <input type="file" id="article-file" accept=".pdf,application/pdf" onchange="handlePdfSelection()" class="w-full bg-stone-50/60 border border-stone-200 rounded-2xl px-4 py-2.5 text-sm text-stone-600 file:mr-3 file:border-0 file:bg-emerald-50 file:px-3 file:py-1.5 file:rounded-xl file:text-xs file:font-medium file:text-emerald-800">
                     <p id="article-file-current" class="hidden text-xs text-stone-500 mt-2"></p>
                     <p id="article-file-error" class="hidden text-xs text-rose-600 mt-2" role="alert"></p>
-                    <p class="text-xs text-stone-400 mt-2">僅接受 PDF 檔案；不選擇新檔時會保留原附件。</p>
+                    <p class="text-xs text-stone-400 mt-2">僅接受 PDF 檔案；附件為選填。不選新檔時會保留原附件。</p>
                 </div>
                 <div class="flex justify-end space-x-3 pt-4 border-t border-stone-100">
                     <button type="button" onclick="closeModal('article-modal')" class="px-5 py-2.5 border border-stone-200 rounded-2xl text-xs font-medium text-stone-600 hover:bg-stone-50 transition">取消</button>
-                    <button type="submit" class="px-5 py-2.5 bg-emerald-700 hover:bg-emerald-800 text-white rounded-2xl text-xs font-medium shadow-xs transition flex items-center space-x-1.5">
+                    <button type="submit" name="submission-action" value="draft" class="px-5 py-2.5 border border-stone-200 rounded-2xl text-xs font-medium text-stone-700 hover:bg-stone-50 transition flex items-center space-x-1.5">
+                        <i data-lucide="save" class="w-3.5 h-3.5"></i>
+                        <span>儲存草稿</span>
+                    </button>
+                    <button type="submit" name="submission-action" value="submit" class="px-5 py-2.5 bg-emerald-700 hover:bg-emerald-800 text-white rounded-2xl text-xs font-medium shadow-xs transition flex items-center space-x-1.5">
                         <i data-lucide="check" class="w-3.5 h-3.5"></i>
-                        <span>儲存稿件</span>
+                        <span>直接上傳</span>
                     </button>
                 </div>
             </form>
@@ -532,12 +536,14 @@
         // Handle Form Submit (Create or Update)
         async function handleFormSubmit(e) {
             e.preventDefault();
+            const shouldSubmit = e.submitter?.value === 'submit';
             const id = document.getElementById('article-id').value;
             const author = document.getElementById('article-author').value;
             const category = document.getElementById('article-category').value;
             const title = document.getElementById('article-title').value;
             const content = document.getElementById('article-content').value;
             const selectedFile = document.getElementById('article-file').files[0];
+            const existingArticle = id ? articles.find(article => article.id === id) : null;
             let attachment;
 
             try {
@@ -575,15 +581,16 @@
             const previousArticles = JSON.stringify(articles);
             let successMessage;
             if (id) {
-                const idx = articles.findIndex(a => a.id === id);
+                const idx = articles.findIndex(article => article.id === id);
                 if (idx !== -1) {
                     articles[idx].author = author;
                     articles[idx].category = category;
                     articles[idx].title = title;
                     articles[idx].content = content;
                     articles[idx].date = dateStr;
+                    articles[idx].status = shouldSubmit ? '審查中' : '編輯中';
                     if (attachment) articles[idx].attachment = attachment;
-                    successMessage = '稿件更新成功';
+                    successMessage = shouldSubmit ? '稿件已直接上傳並送出審查' : '草稿更新成功';
                 }
             } else {
                 const newArt = {
@@ -592,12 +599,12 @@
                     category,
                     title,
                     content,
-                    status: '編輯中',
+                    status: shouldSubmit ? '審查中' : '編輯中',
                     date: dateStr
                 };
                 if (attachment) newArt.attachment = attachment;
                 articles.unshift(newArt);
-                successMessage = '新稿件建立成功 (狀態: 編輯中)';
+                successMessage = shouldSubmit ? '稿件已直接上傳並送出審查' : '新草稿已儲存';
             }
 
             try {
