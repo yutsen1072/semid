@@ -94,6 +94,7 @@
                         <option value="新詩">新詩</option>
                         <option value="評論">評論</option>
                         <option value="小說">小說</option>
+                        <option value="其他">其他</option>
                     </select>
                 </div>
                 <div class="text-xs font-medium text-stone-400 w-full sm:w-auto text-right" id="author-count-badge">
@@ -215,12 +216,17 @@
                             <option value="新詩">新詩</option>
                             <option value="評論">評論</option>
                             <option value="小說">小說</option>
+                            <option value="其他">其他</option>
                         </select>
                     </div>
                 </div>
                 <div>
                     <label class="block text-xs font-semibold text-stone-500 mb-1.5 uppercase tracking-wide">文章標題</label>
                     <input type="text" id="article-title" required class="w-full bg-stone-50/60 border border-stone-200 rounded-2xl px-4 py-2.5 text-sm text-stone-800 focus:ring-2 focus:ring-emerald-600/20 focus:border-emerald-600 outline-none transition" placeholder="請輸入文章標題">
+                </div>
+                <div id="article-return-reason" class="hidden bg-amber-50 border border-amber-200/70 rounded-2xl p-4">
+                    <p class="text-xs font-semibold text-amber-900 mb-1">編輯退回原因</p>
+                    <p id="article-return-reason-text" class="text-sm text-amber-900 whitespace-pre-wrap"></p>
                 </div>
                 <div>
                     <label class="block text-xs font-semibold text-stone-500 mb-1.5 uppercase tracking-wide">文章內容</label>
@@ -241,7 +247,7 @@
                     </button>
                     <button type="submit" name="submission-action" value="submit" class="px-5 py-2.5 bg-emerald-700 hover:bg-emerald-800 text-white rounded-2xl text-xs font-medium shadow-xs transition flex items-center space-x-1.5">
                         <i data-lucide="check" class="w-3.5 h-3.5"></i>
-                        <span>直接上傳</span>
+                        <span id="article-submit-label">直接上傳</span>
                     </button>
                 </div>
             </form>
@@ -337,6 +343,11 @@
         // State Management
         let currentRole = 'author'; // 'author' | 'editor'
         let articles = JSON.parse(localStorage.getItem('fresh_submission_articles')) || initialArticles;
+        articles.forEach(article => {
+            if (article.status === '已退回') {
+                article.status = '編輯中';
+            }
+        });
 
         function saveToStorage() {
             localStorage.setItem('fresh_submission_articles', JSON.stringify(articles));
@@ -406,6 +417,7 @@
                         <td class="px-6 py-4">
                             <div class="font-semibold text-stone-800 cursor-pointer hover:text-emerald-700 transition" onclick="openDetailModal('${art.id}')">${escapeHtml(art.title)}</div>
                             <div class="text-xs text-stone-400 mt-1 line-clamp-1">${escapeHtml(art.content.substring(0, 45))}...</div>
+                            ${art.returnReason ? `<div class="text-xs text-rose-700 mt-2"><span class="font-semibold">退回原因：</span>${escapeHtml(art.returnReason)}</div>` : ''}
                         </td>
                         <td class="px-6 py-4 whitespace-nowrap">
                             <span class="px-2.5 py-1 text-xs font-medium rounded-lg bg-stone-100 text-stone-600">${art.category}</span>
@@ -426,12 +438,14 @@
                                 <button onclick="openEditorModal('${art.id}')" class="text-stone-600 hover:text-emerald-700 p-2 rounded-xl hover:bg-emerald-50 transition" title="編輯稿件">
                                     <i data-lucide="edit-3" class="w-4 h-4"></i>
                                 </button>
-                                <button onclick="submitArticle('${art.id}')" class="text-emerald-700 hover:text-emerald-900 p-2 rounded-xl hover:bg-emerald-50 transition" title="送出投稿">
+                                <button onclick="${art.returnReason ? `openEditorModal('${art.id}')` : `submitArticle('${art.id}')`}" class="text-emerald-700 hover:text-emerald-900 p-2 rounded-xl hover:bg-emerald-50 transition" title="${art.returnReason ? '修改稿件' : '送出投稿'}">
                                     <i data-lucide="send" class="w-4 h-4"></i>
                                 </button>
+                                ${art.status === '編輯中' ? `
                                 <button onclick="deleteArticle('${art.id}')" class="text-stone-400 hover:text-rose-600 p-2 rounded-xl hover:bg-rose-50 transition" title="刪除稿件">
                                     <i data-lucide="trash-2" class="w-4 h-4"></i>
                                 </button>
+                                ` : ''}
                             ` : ''}
                         </td>
                     </tr>
@@ -500,16 +514,23 @@
             document.getElementById('article-id').value = '';
             document.getElementById('article-file-current').classList.add('hidden');
             document.getElementById('article-file-error').classList.add('hidden');
+            document.getElementById('article-return-reason').classList.add('hidden');
 
             if (id) {
                 const art = articles.find(a => a.id === id);
                 if (art) {
-                    titleEl.innerHTML = `<i data-lucide="file-edit" class="w-4 h-4 text-emerald-700"></i><span>編輯投稿稿件</span>`;
+                    const isReturned = Boolean(art.returnReason);
+                    titleEl.innerHTML = `<i data-lucide="file-edit" class="w-4 h-4 text-emerald-700"></i><span>${isReturned ? '修改退回稿件' : '編輯投稿稿件'}</span>`;
+                    document.getElementById('article-submit-label').innerText = isReturned ? '送出投稿' : '直接上傳';
                     document.getElementById('article-id').value = art.id;
                     document.getElementById('article-author').value = art.author;
                     document.getElementById('article-category').value = art.category;
                     document.getElementById('article-title').value = art.title;
                     document.getElementById('article-content').value = art.content;
+                    if (art.returnReason) {
+                        document.getElementById('article-return-reason-text').innerText = art.returnReason;
+                        document.getElementById('article-return-reason').classList.remove('hidden');
+                    }
                     if (art.attachment) {
                         const currentFile = document.getElementById('article-file-current');
                         currentFile.textContent = `目前附件：${art.attachment.name}`;
@@ -518,6 +539,7 @@
                 }
             } else {
                 titleEl.innerHTML = `<i data-lucide="file-edit" class="w-4 h-4 text-emerald-700"></i><span>新增投稿稿件</span>`;
+                document.getElementById('article-submit-label').innerText = '直接上傳';
             }
 
             modal.classList.remove('hidden');
@@ -547,7 +569,6 @@
             const title = document.getElementById('article-title').value;
             const content = document.getElementById('article-content').value;
             const selectedFile = document.getElementById('article-file').files[0];
-            const existingArticle = id ? articles.find(article => article.id === id) : null;
             let attachment;
 
             try {
@@ -587,15 +608,22 @@
             if (id) {
                 const idx = articles.findIndex(article => article.id === id);
                 if (idx !== -1) {
+                    const isReturned = Boolean(articles[idx].returnReason);
                     articles[idx].author = author;
                     articles[idx].category = category;
                     articles[idx].title = title;
                     articles[idx].content = content;
                     articles[idx].date = dateStr;
-                    articles[idx].status = shouldSubmit ? '審查中' : '編輯中';
-                    if (shouldSubmit) delete articles[idx].returnReason;
+                    if (shouldSubmit) {
+                        articles[idx].status = '審查中';
+                        delete articles[idx].returnReason;
+                    } else if (!articles[idx].returnReason) {
+                        articles[idx].status = '編輯中';
+                    }
                     if (attachment) articles[idx].attachment = attachment;
-                    successMessage = shouldSubmit ? '稿件已直接上傳並送出審查' : '草稿更新成功';
+                    successMessage = shouldSubmit
+                        ? (isReturned ? '修改稿件已送出審查' : '稿件已直接上傳並送出審查')
+                        : '草稿更新成功';
                 }
             } else {
                 const newArt = {
@@ -670,7 +698,7 @@
                 } else {
                     delete art.returnReason;
                 }
-                art.status = newStatus;
+                art.status = newStatus === '編輯中' ? '編輯中' : newStatus;
                 const now = new Date();
                 art.date = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')} ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
                 saveToStorage();
