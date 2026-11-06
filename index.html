@@ -1,0 +1,656 @@
+<!DOCTYPE html>
+<html lang="zh-TW" class="h-full">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>投稿與審查系統 - 清新森系</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Inter Font -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Noto+Serif+TC:wght@400;600&display=swap" rel="stylesheet">
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        body { 
+            font-family: 'Inter', 'Noto Serif TC', sans-serif; 
+            background-color: #FBF9F5; /* 溫潤米白底色 */
+            color: #4A453E;
+        }
+    </style>
+</head>
+<body class="h-full flex flex-col selection:bg-emerald-100 selection:text-emerald-800">
+
+    <!-- Top Navigation Bar -->
+    <header class="bg-white/80 backdrop-blur-md border-b border-stone-200/60 sticky top-0 z-30 shadow-xs">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-18 flex items-center justify-between">
+            <!-- App Logo / Title -->
+            <div class="flex items-center space-x-3">
+                <div class="bg-stone-800 text-stone-100 p-2.5 rounded-2xl shadow-sm flex items-center justify-center">
+                    <i data-lucide="feather" class="w-5 h-5 text-emerald-300"></i>
+                </div>
+                <div>
+                    <h1 class="text-base font-bold text-stone-800 tracking-wide">拾光・圖文投稿平台</h1>
+                    <p class="text-xs text-stone-400 hidden sm:block">輕柔、純粹的文字協同與審查空間</p>
+                </div>
+            </div>
+
+            <!-- Role Switcher -->
+            <div class="flex items-center space-x-4">
+                <div class="bg-stone-100/80 p-1.5 rounded-2xl flex items-center border border-stone-200/60 shadow-inner">
+                    <button onclick="switchRole('author')" id="role-btn-author" class="px-4 py-2 rounded-xl text-xs font-semibold transition-all flex items-center space-x-2">
+                        <i data-lucide="pen-tool" class="w-3.5 h-3.5"></i>
+                        <span>作者視角</span>
+                    </button>
+                    <button onclick="switchRole('editor')" id="role-btn-editor" class="px-4 py-2 rounded-xl text-xs font-semibold transition-all flex items-center space-x-2">
+                        <i data-lucide="check-circle-2" class="w-3.5 h-3.5"></i>
+                        <span>編輯視角</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content Container -->
+    <main class="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8 flex flex-col">
+
+        <!-- AUTHOR VIEW -->
+        <div id="view-author" class="space-y-6 flex-1 flex flex-col">
+            <!-- Dashboard Banner -->
+            <div class="bg-stone-200/60 border border-stone-300/40 rounded-3xl p-6 md:p-8 text-stone-800 shadow-xs flex flex-col md:flex-row justify-between items-start md:items-center gap-4 relative overflow-hidden">
+                <div class="absolute right-0 bottom-0 translate-x-6 translate-y-6 opacity-10 pointer-events-none">
+                    <i data-lucide="book-open" class="w-64 h-64 text-stone-900"></i>
+                </div>
+                <div class="relative z-10">
+                    <span class="bg-emerald-800/10 text-emerald-900 text-xs font-semibold px-3 py-1 rounded-full uppercase tracking-widest border border-emerald-800/10">作者專區</span>
+                    <h2 class="text-2xl font-bold mt-2 text-stone-900">我的作品集與投稿</h2>
+                    <p class="text-stone-600 text-sm mt-1 max-w-xl">管理您的散文、新詩、評論或小說創作。點擊「新增投稿」開始記錄靈感。</p>
+                </div>
+                <button onclick="openEditorModal()" class="relative z-10 bg-emerald-700 hover:bg-emerald-800 text-stone-50 font-medium px-5 py-3 rounded-2xl shadow-sm transition flex items-center space-x-2 text-sm shrink-0">
+                    <i data-lucide="plus" class="w-4 h-4"></i>
+                    <span>新增投稿</span>
+                </button>
+            </div>
+
+            <!-- Filters Toolbar -->
+            <div class="bg-white/70 backdrop-blur-sm p-4 rounded-2xl shadow-xs border border-stone-200/60 flex flex-col sm:flex-row justify-between items-center gap-4">
+                <div class="flex flex-wrap items-center gap-3 w-full sm:w-auto">
+                    <div class="flex items-center space-x-1.5 text-xs font-medium text-stone-500">
+                        <i data-lucide="sliders-horizontal" class="w-3.5 h-3.5"></i>
+                        <span>狀態：</span>
+                    </div>
+                    <select id="author-status-filter" onchange="renderAuthorList()" class="bg-stone-50 border border-stone-200 text-stone-700 text-xs rounded-xl focus:ring-emerald-600 focus:border-emerald-600 block px-3 py-2 outline-none">
+                        <option value="all">全部狀態</option>
+                        <option value="編輯中">編輯中</option>
+                        <option value="審查中">審查中</option>
+                        <option value="已通過">已通過</option>
+                    </select>
+
+                    <div class="flex items-center space-x-1.5 text-xs font-medium text-stone-500 ml-0 sm:ml-4">
+                        <span>類別：</span>
+                    </div>
+                    <select id="author-category-filter" onchange="renderAuthorList()" class="bg-stone-50 border border-stone-200 text-stone-700 text-xs rounded-xl focus:ring-emerald-600 focus:border-emerald-600 block px-3 py-2 outline-none">
+                        <option value="all">全部類別</option>
+                        <option value="散文">散文</option>
+                        <option value="新詩">新詩</option>
+                        <option value="評論">評論</option>
+                        <option value="小說">小說</option>
+                    </select>
+                </div>
+                <div class="text-xs font-medium text-stone-400 w-full sm:w-auto text-right" id="author-count-badge">
+                    共 0 筆稿件
+                </div>
+            </div>
+
+            <!-- Author Articles Table -->
+            <div class="bg-white/80 backdrop-blur-sm rounded-3xl shadow-xs border border-stone-200/60 overflow-hidden flex-1">
+                <div class="overflow-x-auto">
+                    <table class="min-w-full divide-y divide-stone-100">
+                        <thead class="bg-stone-50/80 text-stone-400 text-xs font-semibold tracking-wider">
+                            <tr>
+                                <th scope="col" class="px-6 py-4 text-left">標題與摘要</th>
+                                <th scope="col" class="px-6 py-4 text-left">類別</th>
+                                <th scope="col" class="px-6 py-4 text-left">審查狀態</th>
+                                <th scope="col" class="px-6 py-4 text-left">更新時間</th>
+                                <th scope="col" class="px-6 py-4 text-right">操作</th>
+                            </tr>
+                        </thead>
+                        <tbody id="author-table-body" class="divide-y divide-stone-100 text-sm">
+                            <!-- Populated dynamically -->
+                        </tbody>
+                    </table>
+                </div>
+                <!-- Empty state -->
+                <div id="author-empty" class="hidden flex flex-col items-center justify-center p-16 text-center text-stone-400">
+                    <div class="bg-stone-100 p-4 rounded-full mb-3 text-stone-400">
+                        <i data-lucide="book-open-check" class="w-8 h-8 stroke-1"></i>
+                    </div>
+                    <p class="text-stone-600 font-medium text-sm">目前沒有符合條件的稿件</p>
+                    <p class="text-xs text-stone-400 mt-1">點擊上方「新增投稿」開始撰寫新文章吧</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- EDITOR VIEW -->
+        <div id="view-editor" class="space-y-6 flex-1 flex flex-col hidden">
+            <!-- Dashboard Banner -->
+            <div class="bg-emerald-900/10 border border-emerald-900/10 rounded-3xl p-6 md:p-8 text-stone-800 shadow-xs flex flex-col md:flex-row justify-between items-start md:items-center gap-4 relative overflow-hidden">
+                <div class="absolute right-0 bottom-0 translate-x-6 translate-y-6 opacity-10 pointer-events-none">
+                    <i data-lucide="shield-check" class="w-64 h-64 text-emerald-900"></i>
+                </div>
+                <div class="relative z-10">
+                    <span class="bg-emerald-800/15 text-emerald-900 text-xs font-semibold px-3 py-1 rounded-full uppercase tracking-widest border border-emerald-800/10">編輯專區</span>
+                    <h2 class="text-2xl font-bold mt-2 text-stone-900">待審查稿件清單</h2>
+                    <p class="text-stone-600 text-sm mt-1 max-w-xl">審閱所有狀態為「審查中」的投稿，您可以核准通過或將稿件退回給作者修改。</p>
+                </div>
+                <div class="relative z-10 bg-white/80 px-5 py-3 rounded-2xl border border-stone-200/60 flex items-center space-x-3 shadow-xs">
+                    <div class="bg-emerald-100 text-emerald-800 p-2 rounded-xl">
+                        <i data-lucide="clock" class="w-4 h-4"></i>
+                    </div>
+                    <div>
+                        <div class="text-xs text-stone-400 font-medium">待審查總數</div>
+                        <div class="text-base font-bold text-stone-800" id="pending-count-badge">0 篇</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Editor Articles Table -->
+            <div class="bg-white/80 backdrop-blur-sm rounded-3xl shadow-xs border border-stone-200/60 overflow-hidden flex-1">
+                <div class="overflow-x-auto">
+                    <table class="min-w-full divide-y divide-stone-100">
+                        <thead class="bg-stone-50/80 text-stone-400 text-xs font-semibold tracking-wider">
+                            <tr>
+                                <th scope="col" class="px-6 py-4 text-left">作者名稱</th>
+                                <th scope="col" class="px-6 py-4 text-left">類別</th>
+                                <th scope="col" class="px-6 py-4 text-left">標題與內容預覽</th>
+                                <th scope="col" class="px-6 py-4 text-left">更新時間</th>
+                                <th scope="col" class="px-6 py-4 text-right">審查操作</th>
+                            </tr>
+                        </thead>
+                        <tbody id="editor-table-body" class="divide-y divide-stone-100 text-sm">
+                            <!-- Populated dynamically -->
+                        </tbody>
+                    </table>
+                </div>
+                <!-- Empty state for editor -->
+                <div id="editor-empty" class="hidden flex flex-col items-center justify-center p-16 text-center text-stone-400">
+                    <div class="bg-emerald-50 p-4 rounded-full mb-3 text-emerald-600">
+                        <i data-lucide="sparkles" class="w-8 h-8 stroke-1"></i>
+                    </div>
+                    <p class="text-stone-600 font-medium text-sm">目前沒有需要審查的稿件</p>
+                    <p class="text-xs text-stone-400 mt-1">所有送出的稿件皆已審畢，請稍候作者提交新稿件。</p>
+                </div>
+            </div>
+        </div>
+
+    </main>
+
+    <!-- Footer -->
+    <footer class="bg-white/40 border-t border-stone-200/60 py-6 text-center text-xs text-stone-400 mt-auto">
+        拾光・圖文投稿平台 &copy; 2026 | 溫潤自然的協作體驗
+    </footer>
+
+    <!-- MODAL: Add / Edit Article (Author) -->
+    <div id="article-modal" class="fixed inset-0 z-50 bg-stone-900/30 backdrop-blur-xs hidden flex items-center justify-center p-4">
+        <div class="bg-white rounded-3xl shadow-xl max-w-2xl w-full overflow-hidden border border-stone-200/60 transform transition-all">
+            <div class="bg-stone-50/80 px-6 py-4 border-b border-stone-100 flex items-center justify-between">
+                <h3 id="modal-title" class="text-base font-bold text-stone-800 flex items-center space-x-2">
+                    <i data-lucide="file-edit" class="w-4 h-4 text-emerald-700"></i>
+                    <span>新增投稿稿件</span>
+                </h3>
+                <button onclick="closeModal('article-modal')" class="text-stone-400 hover:text-stone-600 p-1.5 rounded-xl hover:bg-stone-100 transition">
+                    <i data-lucide="x" class="w-4 h-4"></i>
+                </button>
+            </div>
+            <form id="article-form" onsubmit="handleFormSubmit(event)" class="p-6 space-y-4">
+                <input type="hidden" id="article-id">
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-xs font-semibold text-stone-500 mb-1.5 uppercase tracking-wide">作者名稱</label>
+                        <input type="text" id="article-author" required class="w-full bg-stone-50/60 border border-stone-200 rounded-2xl px-4 py-2.5 text-sm text-stone-800 focus:ring-2 focus:ring-emerald-600/20 focus:border-emerald-600 outline-none transition" placeholder="例如：林雨萱">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-stone-500 mb-1.5 uppercase tracking-wide">文章類別</label>
+                        <select id="article-category" class="w-full bg-stone-50/60 border border-stone-200 rounded-2xl px-4 py-2.5 text-sm text-stone-800 focus:ring-2 focus:ring-emerald-600/20 focus:border-emerald-600 outline-none transition">
+                            <option value="散文">散文</option>
+                            <option value="新詩">新詩</option>
+                            <option value="評論">評論</option>
+                            <option value="小說">小說</option>
+                        </select>
+                    </div>
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-stone-500 mb-1.5 uppercase tracking-wide">文章標題</label>
+                    <input type="text" id="article-title" required class="w-full bg-stone-50/60 border border-stone-200 rounded-2xl px-4 py-2.5 text-sm text-stone-800 focus:ring-2 focus:ring-emerald-600/20 focus:border-emerald-600 outline-none transition" placeholder="請輸入文章標題">
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-stone-500 mb-1.5 uppercase tracking-wide">文章內容</label>
+                    <textarea id="article-content" rows="7" required class="w-full bg-stone-50/60 border border-stone-200 rounded-2xl p-4 text-sm text-stone-800 focus:ring-2 focus:ring-emerald-600/20 focus:border-emerald-600 outline-none transition leading-relaxed" placeholder="請在此輸入您的文章詳細內容..."></textarea>
+                </div>
+                <div class="flex justify-end space-x-3 pt-4 border-t border-stone-100">
+                    <button type="button" onclick="closeModal('article-modal')" class="px-5 py-2.5 border border-stone-200 rounded-2xl text-xs font-medium text-stone-600 hover:bg-stone-50 transition">取消</button>
+                    <button type="submit" class="px-5 py-2.5 bg-emerald-700 hover:bg-emerald-800 text-white rounded-2xl text-xs font-medium shadow-xs transition flex items-center space-x-1.5">
+                        <i data-lucide="check" class="w-3.5 h-3.5"></i>
+                        <span>儲存稿件</span>
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- MODAL: View Detail / Review -->
+    <div id="detail-modal" class="fixed inset-0 z-50 bg-stone-900/30 backdrop-blur-xs hidden flex items-center justify-center p-4">
+        <div class="bg-white rounded-3xl shadow-xl max-w-3xl w-full overflow-hidden border border-stone-200/60 transform transition-all max-h-[90vh] flex flex-col">
+            <div class="bg-stone-50/80 px-6 py-4 border-b border-stone-100 flex items-center justify-between shrink-0">
+                <div class="flex items-center space-x-2.5">
+                    <span id="detail-category-badge" class="px-3 py-1 text-xs font-medium rounded-full bg-stone-100 text-stone-700">類別</span>
+                    <span id="detail-status-badge" class="px-3 py-1 text-xs font-semibold rounded-full bg-amber-50 text-amber-800 border border-amber-200/50">狀態</span>
+                </div>
+                <button onclick="closeModal('detail-modal')" class="text-stone-400 hover:text-stone-600 p-1.5 rounded-xl hover:bg-stone-100 transition">
+                    <i data-lucide="x" class="w-4 h-4"></i>
+                </button>
+            </div>
+            <div class="p-6 md:p-8 overflow-y-auto space-y-4 flex-1">
+                <h2 id="detail-title" class="text-2xl font-bold text-stone-900 tracking-tight">文章標題</h2>
+                <div class="flex items-center space-x-3 text-xs text-stone-400 pb-4 border-b border-stone-100">
+                    <div class="flex items-center space-x-1">
+                        <i data-lucide="user" class="w-3.5 h-3.5 text-stone-400"></i>
+                        <span id="detail-author" class="font-medium text-stone-700">作者名稱</span>
+                    </div>
+                    <span>•</span>
+                    <div class="flex items-center space-x-1">
+                        <i data-lucide="calendar" class="w-3.5 h-3.5 text-stone-400"></i>
+                        <span id="detail-date">2026-06-06</span>
+                    </div>
+                </div>
+                <div class="text-stone-700 whitespace-pre-wrap leading-relaxed bg-stone-50/50 p-6 rounded-2xl border border-stone-100 text-sm font-normal" id="detail-content">
+                    文章詳細內容...
+                </div>
+            </div>
+            <div id="detail-footer-actions" class="bg-stone-50/80 px-6 py-4 border-t border-stone-100 flex items-center justify-end space-x-3 shrink-0">
+                <!-- Dynamic actions rendered via JS -->
+            </div>
+        </div>
+    </div>
+
+    <!-- Notification Toast Box -->
+    <div id="toast" class="fixed bottom-6 right-6 z-50 transform translate-y-20 opacity-0 transition-all duration-300 pointer-events-none">
+        <div class="bg-stone-900 text-stone-100 px-5 py-3.5 rounded-2xl shadow-xl flex items-center space-x-3 text-xs font-medium border border-stone-800">
+            <i data-lucide="sparkle" class="w-4 h-4 text-emerald-400"></i>
+            <span id="toast-message">操作成功</span>
+        </div>
+    </div>
+
+    <!-- JavaScript Application Logic -->
+    <script>
+        // Initial Mock Data if localStorage is empty
+        const initialArticles = [
+            {
+                id: "art-1",
+                author: "林雨萱",
+                category: "散文",
+                title: "山城裡的老時光與慢步調",
+                content: "記憶中的山城總是籠罩在一層薄霧中。清晨的石板路上，偶爾能聽見遠處茶園傳來的採茶聲。這裡的時間彷彿放慢了腳步，每一片葉子、每一陣微風都在訴說著歲月的故事。走在巷弄間，斑駁的紅磚牆面爬滿了綠意，空氣裡總是帶著淡淡的茶香與泥土氣息。離開城市喧囂後，才發現內心渴望的不過是這樣一份簡單而純粹的寧靜。",
+                status: "審查中",
+                date: "2026-06-05 14:20"
+            },
+            {
+                id: "art-2",
+                author: "張哲維",
+                category: "新詩",
+                title: "星空下的對話",
+                content: "當城市熄滅最後一盞燈\n我們在銀河的邊緣對坐\n不說話\n只用眼神交換那些未曾實現的夢\n風吹過樹梢\n葉子沙沙作響\n那是宇宙給我們的回音\n溫柔而堅定",
+                status: "編輯中",
+                date: "2026-06-06 09:15"
+            },
+            {
+                id: "art-3",
+                author: "王冠宇",
+                category: "評論",
+                title: "數位時代下的閱讀省思與紙本書的價值",
+                content: "隨著電子載具與串流內容的普及，現代人的閱讀習慣正經歷前所未有的劇烈變革。碎片化的資訊接收雖然提升了效率，卻也對深度思考與長篇專注力造成了挑戰。本文旨在探討紙本書籍在觸感、儀式感以及知識沉澱上無可替代的核心價值，並呼籲在數位浪潮中保留一塊心靈的靜土。",
+                status: "已通過",
+                date: "2026-06-04 18:40"
+            }
+        ];
+
+        // State Management
+        let currentRole = 'author'; // 'author' | 'editor'
+        let articles = JSON.parse(localStorage.getItem('fresh_submission_articles')) || initialArticles;
+
+        function saveToStorage() {
+            localStorage.setItem('fresh_submission_articles', JSON.stringify(articles));
+        }
+
+        // Initialize Lucide Icons
+        window.addEventListener('DOMContentLoaded', () => {
+            lucide.createIcons();
+            switchRole('author');
+        });
+
+        // Role Switcher Function
+        function switchRole(role) {
+            currentRole = role;
+            const authorView = document.getElementById('view-author');
+            const editorView = document.getElementById('view-editor');
+            const btnAuthor = document.getElementById('role-btn-author');
+            const btnEditor = document.getElementById('role-btn-editor');
+
+            if (role === 'author') {
+                authorView.classList.remove('hidden');
+                editorView.classList.add('hidden');
+                btnAuthor.className = "px-4 py-2 rounded-xl text-xs font-semibold transition-all flex items-center space-x-2 bg-white text-stone-800 shadow-xs border border-stone-200/60";
+                btnEditor.className = "px-4 py-2 rounded-xl text-xs font-semibold transition-all flex items-center space-x-2 text-stone-500 hover:text-stone-800";
+                renderAuthorList();
+            } else {
+                editorView.classList.remove('hidden');
+                authorView.classList.add('hidden');
+                btnEditor.className = "px-4 py-2 rounded-xl text-xs font-semibold transition-all flex items-center space-x-2 bg-white text-stone-800 shadow-xs border border-stone-200/60";
+                btnAuthor.className = "px-4 py-2 rounded-xl text-xs font-semibold transition-all flex items-center space-x-2 text-stone-500 hover:text-stone-800";
+                renderEditorList();
+            }
+            lucide.createIcons();
+        }
+
+        // Render Author List with Filters
+        function renderAuthorList() {
+            const statusFilter = document.getElementById('author-status-filter').value;
+            const categoryFilter = document.getElementById('author-category-filter').value;
+            const tbody = document.getElementById('author-table-body');
+            const emptyEl = document.getElementById('author-empty');
+            const countBadge = document.getElementById('author-count-badge');
+
+            let filtered = articles.filter(art => {
+                const matchStatus = (statusFilter === 'all' || art.status === statusFilter);
+                const matchCat = (categoryFilter === 'all' || art.category === categoryFilter);
+                return matchStatus && matchCat;
+            });
+
+            countBadge.innerText = `共 ${filtered.length} 筆稿件`;
+
+            if (filtered.length === 0) {
+                tbody.innerHTML = '';
+                emptyEl.classList.remove('hidden');
+                return;
+            }
+
+            emptyEl.classList.add('hidden');
+            tbody.innerHTML = filtered.map(art => {
+                let badgeClass = '';
+                if (art.status === '編輯中') badgeClass = 'bg-amber-50 text-amber-800 border-amber-200/60';
+                else if (art.status === '審查中') badgeClass = 'bg-sky-50 text-sky-800 border-sky-200/60';
+                else if (art.status === '已通過') badgeClass = 'bg-emerald-50 text-emerald-800 border-emerald-200/60';
+
+                return `
+                    <tr class="hover:bg-stone-50/50 transition-colors">
+                        <td class="px-6 py-4">
+                            <div class="font-semibold text-stone-800 cursor-pointer hover:text-emerald-700 transition" onclick="openDetailModal('${art.id}')">${escapeHtml(art.title)}</div>
+                            <div class="text-xs text-stone-400 mt-1 line-clamp-1">${escapeHtml(art.content.substring(0, 45))}...</div>
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap">
+                            <span class="px-2.5 py-1 text-xs font-medium rounded-lg bg-stone-100 text-stone-600">${art.category}</span>
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap">
+                            <span class="px-3 py-1 inline-flex text-xs font-medium rounded-full border ${badgeClass}">
+                                ${art.status}
+                            </span>
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap text-xs text-stone-400">
+                            ${art.date}
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium space-x-1.5">
+                            <button onclick="openDetailModal('${art.id}')" class="text-stone-400 hover:text-stone-700 p-2 rounded-xl hover:bg-stone-100 transition" title="檢視內容">
+                                <i data-lucide="eye" class="w-4 h-4"></i>
+                            </button>
+                            ${art.status === '編輯中' ? `
+                                <button onclick="openEditorModal('${art.id}')" class="text-stone-600 hover:text-emerald-700 p-2 rounded-xl hover:bg-emerald-50 transition" title="編輯稿件">
+                                    <i data-lucide="edit-3" class="w-4 h-4"></i>
+                                </button>
+                                <button onclick="submitArticle('${art.id}')" class="text-emerald-700 hover:text-emerald-900 p-2 rounded-xl hover:bg-emerald-50 transition" title="送出投稿">
+                                    <i data-lucide="send" class="w-4 h-4"></i>
+                                </button>
+                                <button onclick="deleteArticle('${art.id}')" class="text-stone-400 hover:text-rose-600 p-2 rounded-xl hover:bg-rose-50 transition" title="刪除稿件">
+                                    <i data-lucide="trash-2" class="w-4 h-4"></i>
+                                </button>
+                            ` : ''}
+                        </td>
+                    </tr>
+                `;
+            }).join('');
+            lucide.createIcons();
+        }
+
+        // Render Editor List (Pending articles only)
+        function renderEditorList() {
+            const tbody = document.getElementById('editor-table-body');
+            const emptyEl = document.getElementById('editor-empty');
+            const pendingCountBadge = document.getElementById('pending-count-badge');
+
+            let pendingArticles = articles.filter(art => art.status === '審查中');
+            pendingCountBadge.innerText = `${pendingArticles.length} 篇`;
+
+            if (pendingArticles.length === 0) {
+                tbody.innerHTML = '';
+                emptyEl.classList.remove('hidden');
+                return;
+            }
+
+            emptyEl.classList.add('hidden');
+            tbody.innerHTML = pendingArticles.map(art => {
+                return `
+                    <tr class="hover:bg-stone-50/50 transition-colors">
+                        <td class="px-6 py-4 whitespace-nowrap font-medium text-stone-800 text-xs">
+                            ${escapeHtml(art.author)}
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap">
+                            <span class="px-2.5 py-1 text-xs font-medium rounded-lg bg-stone-100 text-stone-600">${art.category}</span>
+                        </td>
+                        <td class="px-6 py-4">
+                            <div class="font-semibold text-stone-800 cursor-pointer hover:text-emerald-700 transition" onclick="openDetailModal('${art.id}')">${escapeHtml(art.title)}</div>
+                            <div class="text-xs text-stone-400 mt-1 line-clamp-1">${escapeHtml(art.content.substring(0, 45))}...</div>
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap text-xs text-stone-400">
+                            ${art.date}
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium space-x-2">
+                            <button onclick="openDetailModal('${art.id}')" class="text-stone-500 hover:text-stone-700 px-3 py-2 rounded-xl hover:bg-stone-100 transition inline-flex items-center space-x-1 text-xs" title="詳細審查">
+                                <i data-lucide="eye" class="w-3.5 h-3.5"></i>
+                                <span>預覽</span>
+                            </button>
+                            <button onclick="reviewArticle('${art.id}', '已通過')" class="bg-emerald-700 hover:bg-emerald-800 text-white px-3.5 py-2 rounded-xl text-xs font-medium shadow-xs transition inline-flex items-center space-x-1">
+                                <i data-lucide="check" class="w-3.5 h-3.5"></i>
+                                <span>通過</span>
+                            </button>
+                            <button onclick="reviewArticle('${art.id}', '編輯中')" class="bg-amber-100 hover:bg-amber-200 text-amber-900 px-3.5 py-2 rounded-xl text-xs font-medium transition inline-flex items-center space-x-1">
+                                <i data-lucide="rotate-ccw" class="w-3.5 h-3.5"></i>
+                                <span>退回</span>
+                            </button>
+                        </td>
+                    </tr>
+                `;
+            }).join('');
+            lucide.createIcons();
+        }
+
+        // Author Actions: Add / Edit Modal
+        function openEditorModal(id = null) {
+            const modal = document.getElementById('article-modal');
+            const titleEl = document.getElementById('modal-title');
+            document.getElementById('article-form').reset();
+            document.getElementById('article-id').value = '';
+
+            if (id) {
+                const art = articles.find(a => a.id === id);
+                if (art) {
+                    titleEl.innerHTML = `<i data-lucide="file-edit" class="w-4 h-4 text-emerald-700"></i><span>編輯投稿稿件</span>`;
+                    document.getElementById('article-id').value = art.id;
+                    document.getElementById('article-author').value = art.author;
+                    document.getElementById('article-category').value = art.category;
+                    document.getElementById('article-title').value = art.title;
+                    document.getElementById('article-content').value = art.content;
+                }
+            } else {
+                titleEl.innerHTML = `<i data-lucide="file-edit" class="w-4 h-4 text-emerald-700"></i><span>新增投稿稿件</span>`;
+            }
+
+            modal.classList.remove('hidden');
+            lucide.createIcons();
+        }
+
+        // Handle Form Submit (Create or Update)
+        function handleFormSubmit(e) {
+            e.preventDefault();
+            const id = document.getElementById('article-id').value;
+            const author = document.getElementById('article-author').value;
+            const category = document.getElementById('article-category').value;
+            const title = document.getElementById('article-title').value;
+            const content = document.getElementById('article-content').value;
+            
+            const now = new Date();
+            const dateStr = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')} ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
+
+            if (id) {
+                const idx = articles.findIndex(a => a.id === id);
+                if (idx !== -1) {
+                    articles[idx].author = author;
+                    articles[idx].category = category;
+                    articles[idx].title = title;
+                    articles[idx].content = content;
+                    articles[idx].date = dateStr;
+                    showToast('稿件更新成功');
+                }
+            } else {
+                const newArt = {
+                    id: 'art-' + Date.now(),
+                    author,
+                    category,
+                    title,
+                    content,
+                    status: '編輯中',
+                    date: dateStr
+                };
+                articles.unshift(newArt);
+                showToast('新稿件建立成功 (狀態: 編輯中)');
+            }
+
+            saveToStorage();
+            closeModal('article-modal');
+            renderAuthorList();
+        }
+
+        // Submit Article: 編輯中 => 審查中
+        function submitArticle(id) {
+            const art = articles.find(a => a.id === id);
+            if (art && art.status === '編輯中') {
+                art.status = '審查中';
+                const now = new Date();
+                art.date = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')} ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
+                saveToStorage();
+                renderAuthorList();
+                showToast(`稿件「${art.title}」已順利送出審查`);
+            }
+        }
+
+        // Delete Article: 僅限編輯中
+        function deleteArticle(id) {
+            const art = articles.find(a => a.id === id);
+            if (art && art.status === '編輯中') {
+                if (confirm(`確定要刪除稿件「${art.title}」嗎？此動作無法復原。`)) {
+                    articles = articles.filter(a => a.id !== id);
+                    saveToStorage();
+                    renderAuthorList();
+                    showToast('稿件已刪除');
+                }
+            }
+        }
+
+        // Editor Review Action
+        function reviewArticle(id, newStatus) {
+            const art = articles.find(a => a.id === id);
+            if (art && art.status === '審查中') {
+                art.status = newStatus;
+                const now = new Date();
+                art.date = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')} ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
+                saveToStorage();
+                if (currentRole === 'editor') {
+                    renderEditorList();
+                } else {
+                    renderAuthorList();
+                }
+                const msg = newStatus === '已通過' ? '審查通過！稿件狀態已更新' : '稿件已退回給作者修改';
+                showToast(msg);
+            }
+        }
+
+        // View Detail Modal
+        function openDetailModal(id) {
+            const art = articles.find(a => a.id === id);
+            if (!art) return;
+
+            document.getElementById('detail-title').innerText = art.title;
+            document.getElementById('detail-author').innerText = art.author;
+            document.getElementById('detail-category-badge').innerText = art.category;
+            document.getElementById('detail-status-badge').innerText = art.status;
+            document.getElementById('detail-date').innerText = art.date;
+            document.getElementById('detail-content').innerText = art.content;
+
+            const statusBadge = document.getElementById('detail-status-badge');
+            if (art.status === '編輯中') statusBadge.className = "px-3 py-1 text-xs font-semibold rounded-full bg-amber-50 text-amber-800 border border-amber-200/50";
+            else if (art.status === '審查中') statusBadge.className = "px-3 py-1 text-xs font-semibold rounded-full bg-sky-50 text-sky-800 border border-sky-200/50";
+            else if (art.status === '已通過') statusBadge.className = "px-3 py-1 text-xs font-semibold rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200/50";
+
+            const footerActions = document.getElementById('detail-footer-actions');
+            if (currentRole === 'editor' && art.status === '審查中') {
+                footerActions.innerHTML = `
+                    <button onclick="closeModal('detail-modal'); reviewArticle('${art.id}', '編輯中');" class="bg-amber-100 hover:bg-amber-200 text-amber-900 px-4 py-2.5 rounded-2xl text-xs font-medium transition flex items-center space-x-1.5">
+                        <i data-lucide="rotate-ccw" class="w-4 h-4"></i>
+                        <span>退回稿件</span>
+                    </button>
+                    <button onclick="closeModal('detail-modal'); reviewArticle('${art.id}', '已通過');" class="bg-emerald-700 hover:bg-emerald-800 text-white px-4 py-2.5 rounded-2xl text-xs font-medium shadow-xs transition flex items-center space-x-1.5">
+                        <i data-lucide="check-circle" class="w-4 h-4"></i>
+                        <span>審查通過</span>
+                    </button>
+                `;
+            } else {
+                footerActions.innerHTML = `
+                    <button onclick="closeModal('detail-modal')" class="bg-stone-200 hover:bg-stone-300 text-stone-700 px-5 py-2.5 rounded-2xl text-xs font-medium transition">關閉</button>
+                `;
+            }
+
+            document.getElementById('detail-modal').classList.remove('hidden');
+            lucide.createIcons();
+        }
+
+        // Modal Utility
+        function closeModal(modalId) {
+            document.getElementById(modalId).classList.add('hidden');
+        }
+
+        // Toast Notification Helper
+        function showToast(message) {
+            const toast = document.getElementById('toast');
+            const toastMessage = document.getElementById('toast-message');
+            toastMessage.innerText = message;
+
+            toast.classList.remove('translate-y-20', 'opacity-0');
+            toast.classList.add('translate-y-0', 'opacity-100');
+
+            setTimeout(() => {
+                toast.classList.remove('translate-y-0', 'opacity-100');
+                toast.classList.add('translate-y-20', 'opacity-0');
+            }, 3000);
+        }
+
+        // HTML Escape helper to prevent XSS
+        function escapeHtml(text) {
+            const map = {
+                '&': '&amp;',
+                '<': '&lt;',
+                '>': '&gt;',
+                '"': '&quot;',
+                "'": '&#039;'
+            };
+            return text.replace(/[&<>"']/g, function(m) { return map[m]; });
+        }
+    </script>
+</body>
+</html>
