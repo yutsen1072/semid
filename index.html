@@ -20,6 +20,56 @@
 </head>
 <body class="h-full flex flex-col selection:bg-emerald-100 selection:text-emerald-800">
 
+    <section id="auth-screen" class="flex-1 flex items-center justify-center px-4 py-10">
+        <div class="w-full max-w-md bg-white/90 rounded-3xl shadow-sm border border-stone-200/70 p-7 sm:p-9">
+            <div class="text-center mb-7">
+                <div class="inline-flex bg-stone-800 text-emerald-300 p-3 rounded-2xl mb-4">
+                    <i data-lucide="feather" class="w-6 h-6"></i>
+                </div>
+                <h1 class="text-xl font-bold text-stone-800">拾光・圖文投稿平台</h1>
+                <p class="text-sm text-stone-500 mt-2">登入或建立帳號以繼續</p>
+            </div>
+            <div class="grid grid-cols-2 bg-stone-100 p-1 rounded-2xl mb-6">
+                <button id="auth-login-tab" type="button" onclick="setAuthMode('login')" class="py-2.5 rounded-xl text-sm font-medium">登入</button>
+                <button id="auth-register-tab" type="button" onclick="setAuthMode('register')" class="py-2.5 rounded-xl text-sm font-medium">建立帳號</button>
+            </div>
+            <form id="auth-form" onsubmit="handleAuthSubmit(event)" class="space-y-4">
+                <div>
+                    <label for="auth-role" class="block text-xs font-semibold text-stone-500 mb-1.5">登入身份</label>
+                    <select id="auth-role" onchange="setAuthMode(authMode)" required class="w-full bg-stone-50 border border-stone-200 rounded-xl px-4 py-3 text-sm outline-none focus:border-emerald-600">
+                        <option value="author">作者</option>
+                        <option value="editor">編輯</option>
+                    </select>
+                </div>
+                <div>
+                    <label for="auth-username" class="block text-xs font-semibold text-stone-500 mb-1.5">使用者名稱</label>
+                    <input id="auth-username" type="text" autocomplete="username" minlength="1" maxlength="50" required class="w-full bg-stone-50 border border-stone-200 rounded-xl px-4 py-3 text-sm outline-none focus:border-emerald-600" placeholder="請設定使用者名稱">
+                </div>
+                <div id="auth-display-name-field">
+                    <label id="auth-display-name-label" for="auth-display-name" class="block text-xs font-semibold text-stone-500 mb-1.5">作者名稱</label>
+                    <input id="auth-display-name" type="text" autocomplete="name" maxlength="80" class="w-full bg-stone-50 border border-stone-200 rounded-xl px-4 py-3 text-sm outline-none focus:border-emerald-600" placeholder="請輸入作者名稱">
+                </div>
+                <div>
+                    <label for="auth-password" class="block text-xs font-semibold text-stone-500 mb-1.5">密碼（至少 8 個字元）</label>
+                    <input id="auth-password" type="password" autocomplete="current-password" minlength="8" required class="w-full bg-stone-50 border border-stone-200 rounded-xl px-4 py-3 text-sm outline-none focus:border-emerald-600" placeholder="至少 8 個字元">
+                </div>
+                <div>
+                    <label for="auth-captcha-input" class="block text-xs font-semibold text-stone-500 mb-1.5">數字驗證碼</label>
+                    <div class="flex gap-2">
+                        <div id="auth-captcha" aria-label="驗證碼" class="flex-1 flex items-center justify-center rounded-xl bg-emerald-50 border border-emerald-100 text-emerald-900 font-bold tracking-[0.4em] text-lg select-none"></div>
+                        <button type="button" onclick="refreshCaptcha()" aria-label="更新驗證碼" class="px-4 rounded-xl border border-stone-200 text-stone-600 hover:bg-stone-50">
+                            <i data-lucide="refresh-cw" class="w-4 h-4"></i>
+                        </button>
+                        <input id="auth-captcha-input" type="text" inputmode="numeric" pattern="[0-9]{4}" maxlength="4" autocomplete="off" required class="w-28 bg-stone-50 border border-stone-200 rounded-xl px-3 py-3 text-sm text-center outline-none focus:border-emerald-600" placeholder="輸入數字">
+                    </div>
+                </div>
+                <p id="auth-error" class="hidden text-sm text-rose-600" role="alert"></p>
+                <button id="auth-submit" type="submit" class="w-full bg-emerald-700 hover:bg-emerald-800 text-white rounded-xl py-3 font-medium transition">登入</button>
+            </form>
+        </div>
+    </section>
+
+    <div id="app-shell" class="hidden flex-1 flex-col">
     <!-- Top Navigation Bar -->
     <header class="bg-white/80 backdrop-blur-md border-b border-stone-200/60 sticky top-0 z-30 shadow-xs">
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-18 flex items-center justify-between">
@@ -34,18 +84,12 @@
                 </div>
             </div>
 
-            <!-- Role Switcher -->
-            <div class="flex items-center space-x-4">
-                <div class="bg-stone-100/80 p-1.5 rounded-2xl flex items-center border border-stone-200/60 shadow-inner">
-                    <button onclick="switchRole('author')" id="role-btn-author" class="px-4 py-2 rounded-xl text-xs font-semibold transition-all flex items-center space-x-2">
-                        <i data-lucide="pen-tool" class="w-3.5 h-3.5"></i>
-                        <span>作者視角</span>
-                    </button>
-                    <button onclick="switchRole('editor')" id="role-btn-editor" class="px-4 py-2 rounded-xl text-xs font-semibold transition-all flex items-center space-x-2">
-                        <i data-lucide="check-circle-2" class="w-3.5 h-3.5"></i>
-                        <span>編輯視角</span>
-                    </button>
+            <div class="flex items-center gap-3">
+                <div class="text-right">
+                    <p id="account-display-name" class="text-sm font-semibold text-stone-700"></p>
+                    <p id="account-role" class="text-xs text-stone-400"></p>
                 </div>
+                <button onclick="logout()" class="px-3 py-2 rounded-xl border border-stone-200 text-xs font-medium text-stone-600 hover:bg-stone-50 transition">登出</button>
             </div>
         </div>
     </header>
@@ -188,6 +232,7 @@
     <footer class="bg-white/40 border-t border-stone-200/60 py-6 text-center text-xs text-stone-400 mt-auto">
         拾光・圖文投稿平台 &copy; 2026 | 溫潤自然的協作體驗
     </footer>
+    </div>
 
     <!-- MODAL: Add / Edit Article (Author) -->
     <div id="article-modal" class="fixed inset-0 z-50 bg-stone-900/30 backdrop-blur-xs hidden flex items-center justify-center p-4">
@@ -206,7 +251,7 @@
                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
                         <label class="block text-xs font-semibold text-stone-500 mb-1.5 uppercase tracking-wide">作者名稱</label>
-                        <input type="text" id="article-author" required class="w-full bg-stone-50/60 border border-stone-200 rounded-2xl px-4 py-2.5 text-sm text-stone-800 focus:ring-2 focus:ring-emerald-600/20 focus:border-emerald-600 outline-none transition" placeholder="例如：林雨萱">
+                        <input type="text" id="article-author" required readonly class="w-full bg-stone-50/60 border border-stone-200 rounded-2xl px-4 py-2.5 text-sm text-stone-800 focus:ring-2 focus:ring-emerald-600/20 focus:border-emerald-600 outline-none transition" placeholder="登入後自動填入">
                     </div>
                     <div>
                         <label class="block text-xs font-semibold text-stone-500 mb-1.5 uppercase tracking-wide">文章類別</label>
@@ -304,8 +349,6 @@
             <span id="toast-message">操作成功</span>
         </div>
     </div>
-
-    <!-- JavaScript Application Logic -->
    
     <script src="script.js"></script>
 </body>

@@ -1,23 +1,186 @@
 const API_URL = 'http://127.0.0.1:8000';
+const AUTH_TOKEN_KEY = 'semid-auth-token';
 
-// 全域變數存放從後端取得的清單
 let articles = [];
+let currentRole = 'author';
+let currentUser = null;
+let authMode = 'login';
+let captchaCode = '';
 
-// 頁面載入時初始化
 window.addEventListener('DOMContentLoaded', () => {
     lucide.createIcons();
-    switchRole('author');
-    fetchSubmissions();
+    refreshCaptcha();
+    setAuthMode('login');
+    restoreSession();
 });
 
-// 1. 從後端取得所有稿件
+function setAuthMode(mode) {
+    authMode = mode;
+    const isRegister = mode === 'register';
+    const displayNameField = document.getElementById('auth-display-name-field');
+    const displayNameInput = document.getElementById('auth-display-name');
+    const passwordInput = document.getElementById('auth-password');
+    const roleSelect = document.getElementById('auth-role');
+
+    displayNameField.classList.toggle('hidden', !isRegister);
+    displayNameInput.required = isRegister;
+    displayNameInput.placeholder =
+        roleSelect.value === 'author' ? '請輸入作者名稱' : '請輸入編輯名稱';
+    passwordInput.autocomplete = isRegister ? 'new-password' : 'current-password';
+    document.getElementById('auth-display-name-label').innerText =
+        roleSelect.value === 'author' ? '作者名稱' : '編輯名稱';
+    document.getElementById('auth-submit').innerText = isRegister ? '建立帳號並登入' : '登入';
+    document.getElementById('auth-login-tab').className = authTabClass(!isRegister);
+    document.getElementById('auth-register-tab').className = authTabClass(isRegister);
+    clearAuthError();
+}
+
+function authTabClass(isActive) {
+    return `py-2.5 rounded-xl text-sm font-medium transition ${
+        isActive ? 'bg-white text-stone-800 shadow-sm' : 'text-stone-500 hover:text-stone-800'
+    }`;
+}
+
+function refreshCaptcha() {
+    const randomBytes = new Uint32Array(1);
+    crypto.getRandomValues(randomBytes);
+    captchaCode = String(randomBytes[0] % 10000).padStart(4, '0');
+    const captcha = document.getElementById('auth-captcha');
+    if (captcha) captcha.innerText = captchaCode;
+    const captchaInput = document.getElementById('auth-captcha-input');
+    if (captchaInput) captchaInput.value = '';
+}
+
+function showAuthError(message) {
+    const error = document.getElementById('auth-error');
+    error.innerText = message;
+    error.classList.remove('hidden');
+}
+
+function clearAuthError() {
+    const error = document.getElementById('auth-error');
+    error.innerText = '';
+    error.classList.add('hidden');
+}
+
+async function restoreSession() {
+    const token = localStorage.getItem(AUTH_TOKEN_KEY);
+    if (!token) return;
+
+    try {
+        const response = await fetch(`${API_URL}/api/auth/me`, {
+            headers: { Authorization: `Bearer ${token}` }
+        });
+        if (!response.ok) {
+            localStorage.removeItem(AUTH_TOKEN_KEY);
+            return;
+        }
+        enterApp(await response.json());
+    } catch (error) {
+        console.error('無法確認登入狀態：', error);
+        showAuthError('目前無法連線至伺服器，請稍後再試。');
+    }
+}
+
+async function handleAuthSubmit(event) {
+    event.preventDefault();
+    clearAuthError();
+
+    if (document.getElementById('auth-captcha-input').value !== captchaCode) {
+        showAuthError('驗證碼錯誤，請重新輸入。');
+        refreshCaptcha();
+        return;
+    }
+
+    const role = document.getElementById('auth-role').value;
+    const payload = {
+        username: document.getElementById('auth-username').value.trim(),
+        password: document.getElementById('auth-password').value,
+        role
+    };
+    if (authMode === 'register') {
+        payload.display_name = document.getElementById('auth-display-name').value.trim();
+    }
+
+    try {
+        const response = await fetch(`${API_URL}/api/auth/${authMode}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+        const result = await response.json();
+        if (!response.ok) {
+            throw new Error(result.detail || '登入失敗');
+        }
+        localStorage.setItem(AUTH_TOKEN_KEY, result.token);
+        enterApp(result.user);
+    } catch (error) {
+        showAuthError(error.message || '無法連線至伺服器，請稍後再試。');
+    } finally {
+        refreshCaptcha();
+    }
+}
+
+function enterApp(user) {
+    currentUser = user;
+    currentRole = user.role;
+    document.getElementById('auth-screen').classList.add('hidden');
+    document.getElementById('app-shell').classList.remove('hidden');
+    document.getElementById('app-shell').classList.add('flex');
+    document.getElementById('account-display-name').innerText = user.display_name;
+    document.getElementById('account-role').innerText =
+        user.role === 'author' ? '作者' : '編輯';
+
+    const authorView = document.getElementById('view-author');
+    const editorView = document.getElementById('view-editor');
+    authorView.classList.toggle('hidden', user.role !== 'author');
+    editorView.classList.toggle('hidden', user.role !== 'editor');
+    fetchSubmissions();
+}
+
+async function logout() {
+    const token = localStorage.getItem(AUTH_TOKEN_KEY);
+    if (token) {
+        try {
+            const response = await fetch(`${API_URL}/api/auth/logout`, {
+                method: 'POST',
+                headers: { Authorization: `Bearer ${token}` }
+            });
+            if (!response.ok) {
+                const result = await response.json();
+                throw new Error(result.detail || '登出失敗');
+            }
+        } catch (error) {
+            console.error('登出請求失敗：', error);
+            showToast(error.message || '無法連線至伺服器，已清除此裝置的登入狀態');
+        }
+    }
+    localStorage.removeItem(AUTH_TOKEN_KEY);
+    currentUser = null;
+    articles = [];
+    document.getElementById('app-shell').classList.add('hidden');
+    document.getElementById('app-shell').classList.remove('flex');
+    document.getElementById('auth-screen').classList.remove('hidden');
+    document.getElementById('auth-form').reset();
+    setAuthMode('login');
+    refreshCaptcha();
+}
+
+async function apiFetch(path, options = {}) {
+    const token = localStorage.getItem(AUTH_TOKEN_KEY);
+    const headers = new Headers(options.headers || {});
+    if (token) headers.set('Authorization', `Bearer ${token}`);
+    return fetch(`${API_URL}${path}`, { ...options, headers });
+}
+
 async function fetchSubmissions() {
     try {
-        const response = await fetch(`${API_URL}/api/submissions`);
-        if (!response.ok) throw new Error('無法取得稿件資料');
+        const response = await apiFetch('/api/submissions');
+        if (!response.ok) {
+            const result = await response.json();
+            throw new Error(result.detail || '無法取得稿件資料');
+        }
         articles = await response.json();
-        
-        // 重新渲染目前所在的視角
         if (currentRole === 'author') {
             renderAuthorList();
         } else {
@@ -27,31 +190,6 @@ async function fetchSubmissions() {
         console.error("連線錯誤：", error);
         showToast("無法連線至後端伺服器");
     }
-}
-
-// Role Switcher
-let currentRole = 'author';
-function switchRole(role) {
-    currentRole = role;
-    const authorView = document.getElementById('view-author');
-    const editorView = document.getElementById('view-editor');
-    const btnAuthor = document.getElementById('role-btn-author');
-    const btnEditor = document.getElementById('role-btn-editor');
-
-    if (role === 'author') {
-        authorView.classList.remove('hidden');
-        editorView.classList.add('hidden');
-        btnAuthor.className = "px-4 py-2 rounded-xl text-xs font-semibold transition-all flex items-center space-x-2 bg-white text-stone-800 shadow-xs border border-stone-200/60";
-        btnEditor.className = "px-4 py-2 rounded-xl text-xs font-semibold transition-all flex items-center space-x-2 text-stone-500 hover:text-stone-800";
-        renderAuthorList();
-    } else {
-        editorView.classList.remove('hidden');
-        authorView.classList.add('hidden');
-        btnEditor.className = "px-4 py-2 rounded-xl text-xs font-semibold transition-all flex items-center space-x-2 bg-white text-stone-800 shadow-xs border border-stone-200/60";
-        btnAuthor.className = "px-4 py-2 rounded-xl text-xs font-semibold transition-all flex items-center space-x-2 text-stone-500 hover:text-stone-800";
-        renderEditorList();
-    }
-    lucide.createIcons();
 }
 
 // Render Author List
@@ -142,7 +280,7 @@ function renderEditorList() {
         return `
             <tr class="hover:bg-stone-50/50 transition-colors">
                 <td class="px-6 py-4 whitespace-nowrap font-medium text-stone-800 text-xs">
-                    一般作者
+                    ${escapeHtml(art.author_name || '一般作者')}
                 </td>
                 <td class="px-6 py-4 whitespace-nowrap">
                     <span class="px-2.5 py-1 text-xs font-medium rounded-lg bg-stone-100 text-stone-600">${art.category}</span>
@@ -186,7 +324,7 @@ function openEditorModal(id = null) {
         if (art) {
             titleEl.innerHTML = `<i data-lucide="file-edit" class="w-4 h-4 text-emerald-700"></i><span>編輯投稿稿件</span>`;
             document.getElementById('article-id').value = art.id;
-            document.getElementById('article-author').value = "作者";
+            document.getElementById('article-author').value = currentUser.display_name;
             document.getElementById('article-category').value = art.category;
             document.getElementById('article-title').value = art.title;
             document.getElementById('article-content').value = art.content;
@@ -194,6 +332,7 @@ function openEditorModal(id = null) {
     } else {
         titleEl.innerHTML = `<i data-lucide="file-edit" class="w-4 h-4 text-emerald-700"></i><span>新增投稿稿件</span>`;
     }
+    document.getElementById('article-author').value = currentUser.display_name;
 
     modal.classList.remove('hidden');
     lucide.createIcons();
@@ -211,22 +350,21 @@ async function handleFormSubmit(e) {
     const payload = {
         title: title,
         category: category,
-        content: content,
-        status: "編輯中"
+        content: content
     };
 
     try {
         let response;
         if (id) {
             // 編輯
-            response = await fetch(`${API_URL}/api/submissions/${id}`, {
+            response = await apiFetch(`/api/submissions/${id}`, {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(payload)
             });
         } else {
             // 新增
-            response = await fetch(`${API_URL}/api/submissions`, {
+            response = await apiFetch('/api/submissions', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(payload)
@@ -242,9 +380,13 @@ async function handleFormSubmit(e) {
 
         // 如果點擊「直接上傳」，則同步執行送審
         if (shouldSubmit && !id) {
-            await fetch(`${API_URL}/api/submissions/${savedArt.id}/submit`, {
+            const submitResponse = await apiFetch(`/api/submissions/${savedArt.id}/submit`, {
                 method: 'POST'
             });
+            if (!submitResponse.ok) {
+                const error = await submitResponse.json();
+                throw new Error(error.detail || '送審失敗');
+            }
         }
 
         closeModal('article-modal');
@@ -258,7 +400,7 @@ async function handleFormSubmit(e) {
 // 送出審查 (編輯中 -> 審查中)
 async function submitArticle(id) {
     try {
-        const response = await fetch(`${API_URL}/api/submissions/${id}/submit`, {
+        const response = await apiFetch(`/api/submissions/${id}/submit`, {
             method: 'POST'
         });
         if (!response.ok) {
@@ -276,7 +418,7 @@ async function submitArticle(id) {
 async function deleteArticle(id) {
     if (confirm('確定要刪除此稿件嗎？')) {
         try {
-            const response = await fetch(`${API_URL}/api/submissions/${id}`, {
+            const response = await apiFetch(`/api/submissions/${id}`, {
                 method: 'DELETE'
             });
             if (!response.ok) {
@@ -294,7 +436,7 @@ async function deleteArticle(id) {
 // 編輯審查動作 (approve / reject)
 async function reviewArticle(id, action) {
     try {
-        const response = await fetch(`${API_URL}/api/submissions/${id}/review?action=${action}`, {
+        const response = await apiFetch(`/api/submissions/${id}/review?action=${action}`, {
             method: 'POST'
         });
         if (!response.ok) {
@@ -315,7 +457,7 @@ function openDetailModal(id) {
     if (!art) return;
 
     document.getElementById('detail-title').innerText = art.title;
-    document.getElementById('detail-author').innerText = "作者";
+    document.getElementById('detail-author').innerText = art.author_name || '一般作者';
     document.getElementById('detail-category-badge').innerText = art.category;
     document.getElementById('detail-status-badge').innerText = art.status;
     document.getElementById('detail-date').innerText = art.updated_at ? art.updated_at.replace('T', ' ').substring(0, 16) : '-';

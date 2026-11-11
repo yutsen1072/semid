@@ -1,0 +1,4 @@
+/.env
+/semid.db
+/semid.db-shm
+/semid.db-wal
