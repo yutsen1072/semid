@@ -1,8 +1,8 @@
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional
 from fastapi import FastAPI, Depends, HTTPException
-from sqlmodel import Field, Session, SQLModel, create_engine, select
 from fastapi.middleware.cors import CORSMiddleware
+from sqlmodel import SQLModel, Field, Session, create_engine, select
 
 app = FastAPI(title="投稿與審查系統 API")
 
@@ -15,7 +15,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# 建立 PostgreSQL 連線 (請依實際環境修改帳號密碼)
+# 建立 PostgreSQL 連線
 DATABASE_URL = "postgresql+psycopg2://postgres:qwert123@localhost:5432/mydb"
 engine = create_engine(DATABASE_URL)
 
@@ -25,7 +25,7 @@ class Submission(SQLModel, table=True):
     category: str
     content: str
     status: str = "編輯中"
-    updated_at: datetime = Field(default_factory=datetime.utcnow)
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 def get_session():
     with Session(engine) as session:
@@ -44,7 +44,7 @@ def get_submissions(session: Session = Depends(get_session)):
 # 2. 新增投稿
 @app.post("/api/submissions")
 def create_submission(sub: Submission, session: Session = Depends(get_session)):
-    sub.updated_at = datetime.utcnow()
+    sub.updated_at = datetime.now(timezone.utc)
     session.add(sub)
     session.commit()
     session.refresh(sub)
@@ -62,7 +62,7 @@ def update_submission(sub_id: int, updated_data: Submission, session: Session = 
     sub.title = updated_data.title
     sub.category = updated_data.category
     sub.content = updated_data.content
-    sub.updated_at = datetime.utcnow()
+    sub.updated_at = datetime.now(timezone.utc)
     
     session.add(sub)
     session.commit()
@@ -89,7 +89,7 @@ def submit_review(sub_id: int, session: Session = Depends(get_session)):
     if not sub or sub.status != "編輯中":
         raise HTTPException(status_code=400, detail="狀態不符，無法送出")
     sub.status = "審查中"
-    sub.updated_at = datetime.utcnow()
+    sub.updated_at = datetime.now(timezone.utc)
     session.add(sub)
     session.commit()
     return sub
@@ -108,7 +108,7 @@ def review_submission(sub_id: int, action: str, session: Session = Depends(get_s
     else:
         raise HTTPException(status_code=400, detail="無效的操作")
         
-    sub.updated_at = datetime.utcnow()
+    sub.updated_at = datetime.now(timezone.utc)
     session.add(sub)
     session.commit()
     return sub
