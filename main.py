@@ -1,6 +1,8 @@
 from datetime import datetime
+from typing import Optional
 from fastapi import FastAPI, Depends, HTTPException
-from sqlModel import Field, Session, SQLModel, create_engine, select
+from sqlmodel import Field, Session, SQLModel, create_engine, select
+from fastapi.middleware.cors import CORSMiddleware
 
 app = FastAPI(title="投稿與審查系統 API")
 
@@ -14,8 +16,16 @@ app.add_middleware(
 )
 
 # 建立 PostgreSQL 連線 (請依實際環境修改帳號密碼)
-DATABASE_URL = "postgresql://postgres:password@localhost:5432/semid_db"
+DATABASE_URL = "postgresql+psycopg2://postgres:qwert123@localhost:5432/mydb"
 engine = create_engine(DATABASE_URL)
+
+class Submission(SQLModel, table=True):
+    id: Optional[int] = Field(default=None, primary_key=True)
+    title: str
+    category: str
+    content: str
+    status: str = "編輯中"
+    updated_at: datetime = Field(default_factory=datetime.utcnow)
 
 def get_session():
     with Session(engine) as session:
