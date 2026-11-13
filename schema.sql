@@ -20,6 +20,7 @@ CREATE TABLE IF NOT EXISTS submission (
     content TEXT NOT NULL,
     status VARCHAR(20) NOT NULL DEFAULT '編輯中',
     author_name VARCHAR(80) NOT NULL DEFAULT '一般作者',
+    attachment_filename VARCHAR(255),
     owner_id INTEGER REFERENCES account(id),
     updated_at TIMESTAMP WITHOUT TIME ZONE DEFAULT (NOW() AT TIME ZONE 'utc')
 );

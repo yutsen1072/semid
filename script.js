@@ -6,6 +6,8 @@ let currentRole = 'author';
 let currentUser = null;
 let authMode = 'login';
 let captchaCode = '';
+let detailPdfObjectUrl = null;
+let detailPdfRequestId = 0;
 
 window.addEventListener('DOMContentLoaded', () => {
     lucide.createIcons();
@@ -288,6 +290,7 @@ function renderEditorList() {
                 <td class="px-6 py-4">
                     <div class="font-semibold text-stone-800 cursor-pointer hover:text-emerald-700 transition" onclick="openDetailModal(${art.id})">${escapeHtml(art.title)}</div>
                     <div class="text-xs text-stone-400 mt-1 line-clamp-1">${escapeHtml(art.content.substring(0, 45))}...</div>
+                    ${art.attachment_filename ? '<div class="text-xs text-emerald-700 mt-1 inline-flex items-center gap-1"><i data-lucide="file-text" class="w-3 h-3"></i><span>附有 PDF</span></div>' : ''}
                 </td>
                 <td class="px-6 py-4 whitespace-nowrap text-xs text-stone-400">
                     ${art.updated_at ? art.updated_at.replace('T', ' ').substring(0, 16) : '-'}
@@ -318,6 +321,10 @@ function openEditorModal(id = null) {
     const titleEl = document.getElementById('modal-title');
     document.getElementById('article-form').reset();
     document.getElementById('article-id').value = '';
+    document.getElementById('article-file-error').classList.add('hidden');
+    const currentFile = document.getElementById('article-file-current');
+    currentFile.innerText = '';
+    currentFile.classList.add('hidden');
 
     if (id) {
         const art = articles.find(a => a.id === id);
@@ -328,6 +335,10 @@ function openEditorModal(id = null) {
             document.getElementById('article-category').value = art.category;
             document.getElementById('article-title').value = art.title;
             document.getElementById('article-content').value = art.content;
+            if (art.attachment_filename) {
+                currentFile.innerText = `目前附件：${art.attachment_filename}（選擇新檔即可取代）`;
+                currentFile.classList.remove('hidden');
+            }
         }
     } else {
         titleEl.innerHTML = `<i data-lucide="file-edit" class="w-4 h-4 text-emerald-700"></i><span>新增投稿稿件</span>`;
@@ -337,7 +348,31 @@ function openEditorModal(id = null) {
     modal.classList.remove('hidden');
     lucide.createIcons();
 }
+function handlePdfSelection(event) {
+    const input = event.target;
+    const file = input.files[0];
+    const errorEl = document.getElementById('article-file-error');
+    const currentFile = document.getElementById('article-file-current');
+    errorEl.classList.add('hidden');
+    if (!file) return;
 
+    if (!file.name.toLowerCase().endsWith('.pdf') ||
+        (file.type && file.type !== 'application/pdf')) {
+        errorEl.innerText = '請選擇有效的 PDF 檔案。';
+        errorEl.classList.remove('hidden');
+        input.value = '';
+        return;
+    }
+    if (file.size > 25 * 1024 * 1024) {
+        errorEl.innerText = 'PDF 檔案不可超過 25 MB。';
+        errorEl.classList.remove('hidden');
+        input.value = '';
+        return;
+    }
+
+    currentFile.innerText = `已選擇：${file.name}`;
+    currentFile.classList.remove('hidden');
+}
 // Handle Form Submit (POST for create, PUT for update)
 async function handleFormSubmit(e) {
     e.preventDefault();
@@ -373,19 +408,46 @@ async function handleFormSubmit(e) {
 
         if (!response.ok) {
             const errData = await response.json();
-            throw new Error(errData.detail || '操作失敗');
+            // 修正：妥善解析 FastAPI 回傳的 422 錯誤陣列或字串訊息
+            let errorMsg = '操作失敗';
+            if (typeof errData.detail === 'string') {
+                errorMsg = errData.detail;
+            } else if (Array.isArray(errData.detail)) {
+                errorMsg = errData.detail.map(err => `${err.loc.join('.')}: ${err.msg}`).join(', ');
+            }
+            throw new Error(errorMsg);
         }
 
         const savedArt = await response.json();
+        const pdfFile = document.getElementById('pdfFile').files[0];
+        if (pdfFile) {
+            const attachmentResponse = await apiFetch(
+                `/api/submissions/${savedArt.id}/attachment?filename=${encodeURIComponent(pdfFile.name)}`,
+                {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/pdf' },
+                    body: pdfFile
+                }
+            );
+            if (!attachmentResponse.ok) {
+                const errorData = await attachmentResponse.json();
+                throw new Error(errorData.detail || 'PDF 附件上傳失敗');
+            }
+        }
 
-        // 如果點擊「直接上傳」，則同步執行送審
-        if (shouldSubmit && !id) {
+        if (shouldSubmit) {
             const submitResponse = await apiFetch(`/api/submissions/${savedArt.id}/submit`, {
                 method: 'POST'
             });
             if (!submitResponse.ok) {
-                const error = await submitResponse.json();
-                throw new Error(error.detail || '送審失敗');
+                const errorData = await submitResponse.json();
+                let submitErrMsg = '送審失敗';
+                if (typeof errorData.detail === 'string') {
+                    submitErrMsg = errorData.detail;
+                } else if (Array.isArray(errorData.detail)) {
+                    submitErrMsg = errorData.detail.map(err => `${err.loc.join('.')}: ${err.msg}`).join(', ');
+                }
+                throw new Error(submitErrMsg);
             }
         }
 
@@ -393,6 +455,7 @@ async function handleFormSubmit(e) {
         showToast('儲存成功');
         fetchSubmissions();
     } catch (error) {
+        // 這裡會正確顯示文字錯誤訊息，不再出現 [object Object]
         alert("錯誤：" + error.message);
     }
 }
@@ -456,12 +519,21 @@ function openDetailModal(id) {
     const art = articles.find(a => a.id === id);
     if (!art) return;
 
+    clearDetailPdf();
     document.getElementById('detail-title').innerText = art.title;
     document.getElementById('detail-author').innerText = art.author_name || '一般作者';
     document.getElementById('detail-category-badge').innerText = art.category;
     document.getElementById('detail-status-badge').innerText = art.status;
     document.getElementById('detail-date').innerText = art.updated_at ? art.updated_at.replace('T', ' ').substring(0, 16) : '-';
     document.getElementById('detail-content').innerText = art.content;
+
+    const attachment = document.getElementById('detail-attachment');
+    attachment.classList.toggle('hidden', !art.attachment_filename);
+    if (art.attachment_filename) {
+        document.getElementById('detail-attachment-name').innerText = art.attachment_filename;
+        document.getElementById('detail-pdf-status').innerText = '正在載入 PDF 預覽…';
+        loadDetailPdf(art.id, art.attachment_filename, detailPdfRequestId);
+    }
 
     const footerActions = document.getElementById('detail-footer-actions');
     if (currentRole === 'editor' && art.status === '審查中') {
@@ -485,8 +557,57 @@ function openDetailModal(id) {
     lucide.createIcons();
 }
 
+async function loadDetailPdf(id, filename, requestId) {
+    try {
+        const response = await apiFetch(`/api/submissions/${id}/attachment`);
+        if (!response.ok) {
+            const result = await response.json();
+            throw new Error(result.detail || '無法載入 PDF 附件');
+        }
+
+        const pdfUrl = URL.createObjectURL(await response.blob());
+        if (requestId !== detailPdfRequestId) {
+            URL.revokeObjectURL(pdfUrl);
+            return;
+        }
+
+        detailPdfObjectUrl = pdfUrl;
+        const link = document.getElementById('detail-attachment-link');
+        link.href = pdfUrl;
+        link.download = filename;
+        const frame = document.getElementById('detail-pdf-frame');
+        frame.src = pdfUrl;
+        frame.classList.remove('hidden');
+        document.getElementById('detail-pdf-status').innerText =
+            '若預覽未顯示，請點擊檔名另開 PDF。';
+    } catch (error) {
+        if (requestId !== detailPdfRequestId) return;
+        const errorEl = document.getElementById('detail-pdf-error');
+        errorEl.innerText = error.message || '無法載入 PDF 附件';
+        errorEl.classList.remove('hidden');
+        document.getElementById('detail-pdf-status').innerText = '';
+    }
+}
+
+function clearDetailPdf() {
+    detailPdfRequestId += 1;
+    if (detailPdfObjectUrl) {
+        URL.revokeObjectURL(detailPdfObjectUrl);
+        detailPdfObjectUrl = null;
+    }
+    const frame = document.getElementById('detail-pdf-frame');
+    frame.removeAttribute('src');
+    frame.classList.add('hidden');
+    const link = document.getElementById('detail-attachment-link');
+    link.removeAttribute('href');
+    link.removeAttribute('download');
+    document.getElementById('detail-pdf-status').innerText = '';
+    document.getElementById('detail-pdf-error').classList.add('hidden');
+}
+
 function closeModal(modalId) {
     document.getElementById(modalId).classList.add('hidden');
+    if (modalId === 'detail-modal') clearDetailPdf();
 }
 
 function showToast(message) {

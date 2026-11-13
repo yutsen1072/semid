@@ -6,8 +6,9 @@ import secrets
 from pathlib import Path
 from typing import Literal, Optional
 
-from fastapi import Depends, FastAPI, HTTPException
+from fastapi import Depends, FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from pydantic import BaseModel, Field as PydanticField
 from sqlalchemy import inspect, text
@@ -49,6 +50,8 @@ engine = create_engine(
 )
 PASSWORD_ITERATIONS = 600_000
 SESSION_LIFETIME = timedelta(days=7)
+UPLOAD_DIRECTORY = Path(__file__).with_name("uploads") / "submissions"
+MAX_PDF_SIZE = 25 * 1024 * 1024
 bearer_scheme = HTTPBearer(auto_error=False)
 
 
@@ -78,6 +81,7 @@ class Submission(SQLModel, table=True):
     content: str
     status: str = "編輯中"
     author_name: str = Field(default="一般作者", max_length=80)
+    attachment_filename: Optional[str] = Field(default=None, max_length=255)
     owner_id: Optional[int] = Field(default=None, foreign_key="account.id")
     updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
@@ -150,7 +154,7 @@ def create_auth_session(account: Account, session: Session) -> dict:
 
 
 def get_current_user(
-    credentials: HTTPAuthorizationCredentials | None = Depends(bearer_scheme),
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(bearer_scheme),
     session: Session = Depends(get_session),
 ) -> Account:
     if credentials is None:
@@ -194,6 +198,13 @@ def on_startup():
         if "owner_id" not in columns:
             connection.execute(
                 text("ALTER TABLE submission ADD COLUMN owner_id INTEGER")
+            )
+        if "attachment_filename" not in columns:
+            connection.execute(
+                text(
+                    "ALTER TABLE submission ADD COLUMN "
+                    "attachment_filename VARCHAR(255)"
+                )
             )
 
 
@@ -243,7 +254,7 @@ def get_account(account: Account = Depends(get_current_user)):
 
 @app.post("/api/auth/logout", dependencies=[Depends(get_current_user)])
 def logout(
-    credentials: HTTPAuthorizationCredentials | None = Depends(bearer_scheme),
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(bearer_scheme),
     session: Session = Depends(get_session),
 ):
     if credentials is not None:
@@ -332,6 +343,79 @@ def delete_submission(
     return {"ok": True}
 
 
+@app.put("/api/submissions/{sub_id}/attachment")
+async def upload_submission_attachment(
+    sub_id: int,
+    request: Request,
+    filename: str = Query(..., min_length=1, max_length=255),
+    session: Session = Depends(get_session),
+    account: Account = Depends(get_current_user),
+):
+    require_role(account, "author")
+    sub = session.get(Submission, sub_id)
+    if not sub or sub.owner_id != account.id:
+        raise HTTPException(status_code=404, detail="找不到此稿件")
+    if sub.status != "編輯中":
+        raise HTTPException(status_code=400, detail="只能修改編輯中的稿件")
+    content_type = request.headers.get("content-type", "").split(";", maxsplit=1)[0]
+    if content_type.strip().lower() != "application/pdf":
+        raise HTTPException(status_code=415, detail="附件必須是 PDF 檔案")
+
+    safe_filename = Path(filename.replace("\\", "/")).name.strip()
+    if not safe_filename or not safe_filename.lower().endswith(".pdf"):
+        raise HTTPException(status_code=400, detail="附件必須是 PDF 檔案")
+
+    content_length = request.headers.get("content-length")
+    if content_length and content_length.isdigit() and int(content_length) > MAX_PDF_SIZE:
+        raise HTTPException(status_code=413, detail="PDF 檔案不可超過 25 MB")
+
+    UPLOAD_DIRECTORY.mkdir(parents=True, exist_ok=True)
+    temporary_path = UPLOAD_DIRECTORY / f".{sub_id}.{secrets.token_hex(8)}.tmp"
+    attachment_path = UPLOAD_DIRECTORY / f"{sub_id}.pdf"
+    size = 0
+    header = bytearray()
+    try:
+        with temporary_path.open("wb") as attachment_file:
+            async for chunk in request.stream():
+                size += len(chunk)
+                if size > MAX_PDF_SIZE:
+                    raise HTTPException(status_code=413, detail="PDF 檔案不可超過 25 MB")
+                if len(header) < 5:
+                    header.extend(chunk[: 5 - len(header)])
+                attachment_file.write(chunk)
+
+        if bytes(header) != b"%PDF-":
+            raise HTTPException(status_code=400, detail="檔案內容不是 PDF 格式")
+
+        os.replace(temporary_path, attachment_path)
+        sub.attachment_filename = safe_filename
+        sub.updated_at = datetime.now(timezone.utc)
+        session.add(sub)
+        session.commit()
+        session.refresh(sub)
+        return sub
+    finally:
+        temporary_path.unlink(missing_ok=True)
+
+
+@app.get("/api/submissions/{sub_id}/attachment")
+def get_submission_attachment(
+    sub_id: int,
+    session: Session = Depends(get_session),
+    account: Account = Depends(get_current_user),
+):
+    sub = session.get(Submission, sub_id)
+    if not sub or (account.role == "author" and sub.owner_id != account.id):
+        raise HTTPException(status_code=404, detail="找不到此稿件")
+    if not sub.attachment_filename:
+        raise HTTPException(status_code=404, detail="此稿件沒有 PDF 附件")
+
+    attachment_path = UPLOAD_DIRECTORY / f"{sub_id}.pdf"
+    if not attachment_path.is_file():
+        raise HTTPException(status_code=404, detail="找不到 PDF 附件")
+    return FileResponse(attachment_path, media_type="application/pdf")
+
+
 @app.post("/api/submissions/{sub_id}/submit")
 def submit_review(
     sub_id: int,
@@ -352,7 +436,7 @@ def submit_review(
 @app.post("/api/submissions/{sub_id}/review")
 def review_submission(
     sub_id: int,
-    action: str,
+    action: str = Query(...),  # ✅ 明確指定從 Query 參數接收
     session: Session = Depends(get_session),
     account: Account = Depends(get_current_user),
 ):
