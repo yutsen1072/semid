@@ -8,6 +8,7 @@ let authMode = 'login';
 let captchaCode = '';
 let detailPdfObjectUrl = null;
 let detailPdfRequestId = 0;
+let pendingRejectionId = null;
 
 window.addEventListener('DOMContentLoaded', () => {
     lucide.createIcons();
@@ -304,7 +305,7 @@ function renderEditorList() {
                         <i data-lucide="check" class="w-3.5 h-3.5"></i>
                         <span>通過</span>
                     </button>
-                    <button onclick="reviewArticle(${art.id}, 'reject')" class="bg-amber-100 hover:bg-amber-200 text-amber-900 px-3.5 py-2 rounded-xl text-xs font-medium transition inline-flex items-center space-x-1">
+                    <button onclick="openRejectModal(${art.id})" class="bg-amber-100 hover:bg-amber-200 text-amber-900 px-3.5 py-2 rounded-xl text-xs font-medium transition inline-flex items-center space-x-1">
                         <i data-lucide="rotate-ccw" class="w-3.5 h-3.5"></i>
                         <span>退回</span>
                     </button>
@@ -335,6 +336,10 @@ function openEditorModal(id = null) {
             document.getElementById('article-category').value = art.category;
             document.getElementById('article-title').value = art.title;
             document.getElementById('article-content').value = art.content;
+            const reasonContainer = document.getElementById('article-return-reason');
+            reasonContainer.classList.toggle('hidden', !art.return_reason);
+            document.getElementById('article-return-reason-text').innerText =
+                art.return_reason || '';
             if (art.attachment_filename) {
                 currentFile.innerText = `目前附件：${art.attachment_filename}（選擇新檔即可取代）`;
                 currentFile.classList.remove('hidden');
@@ -496,10 +501,45 @@ async function deleteArticle(id) {
     }
 }
 
-// 編輯審查動作 (approve / reject)
-async function reviewArticle(id, action) {
+function openRejectModal(id) {
+    const art = articles.find(article => article.id === id);
+    if (!art || art.status !== '審查中') return;
+
+    pendingRejectionId = id;
+    document.getElementById('reject-form').reset();
+    document.getElementById('reject-reason-error').classList.add('hidden');
+    document.getElementById('reject-modal').classList.remove('hidden');
+    document.getElementById('reject-reason').focus();
+    lucide.createIcons();
+}
+
+async function handleRejectSubmit(event) {
+    event.preventDefault();
+    const reason = document.getElementById('reject-reason').value.trim();
+    const errorEl = document.getElementById('reject-reason-error');
+    if (!reason) {
+        errorEl.innerText = '請填寫退回原因。';
+        errorEl.classList.remove('hidden');
+        return;
+    }
+
+    const submitButton = event.submitter;
+    if (submitButton) submitButton.disabled = true;
     try {
-        const response = await apiFetch(`/api/submissions/${id}/review?action=${action}`, {
+        if (await reviewArticle(pendingRejectionId, 'reject', reason)) {
+            closeModal('reject-modal');
+        }
+    } finally {
+        if (submitButton) submitButton.disabled = false;
+    }
+}
+
+// 編輯審查動作 (approve / reject)
+async function reviewArticle(id, action, reason = '') {
+    try {
+        const query = new URLSearchParams({ action });
+        if (action === 'reject') query.set('reason', reason);
+        const response = await apiFetch(`/api/submissions/${id}/review?${query}`, {
             method: 'POST'
         });
         if (!response.ok) {
@@ -509,8 +549,10 @@ async function reviewArticle(id, action) {
         closeModal('detail-modal');
         showToast(action === 'approve' ? '已審查通過' : '已退回稿件');
         fetchSubmissions();
+        return true;
     } catch (error) {
         alert(error.message);
+        return false;
     }
 }
 
@@ -526,6 +568,10 @@ function openDetailModal(id) {
     document.getElementById('detail-status-badge').innerText = art.status;
     document.getElementById('detail-date').innerText = art.updated_at ? art.updated_at.replace('T', ' ').substring(0, 16) : '-';
     document.getElementById('detail-content').innerText = art.content;
+    const reasonContainer = document.getElementById('detail-return-reason');
+    reasonContainer.classList.toggle('hidden', !art.return_reason);
+    document.getElementById('detail-return-reason-text').innerText =
+        art.return_reason || '';
 
     const attachment = document.getElementById('detail-attachment');
     attachment.classList.toggle('hidden', !art.attachment_filename);
@@ -538,7 +584,7 @@ function openDetailModal(id) {
     const footerActions = document.getElementById('detail-footer-actions');
     if (currentRole === 'editor' && art.status === '審查中') {
         footerActions.innerHTML = `
-            <button onclick="reviewArticle(${art.id}, 'reject')" class="bg-amber-100 hover:bg-amber-200 text-amber-900 px-4 py-2.5 rounded-2xl text-xs font-medium transition flex items-center space-x-1.5">
+            <button onclick="openRejectModal(${art.id})" class="bg-amber-100 hover:bg-amber-200 text-amber-900 px-4 py-2.5 rounded-2xl text-xs font-medium transition flex items-center space-x-1.5">
                 <i data-lucide="rotate-ccw" class="w-4 h-4"></i>
                 <span>退回稿件</span>
             </button>
@@ -608,6 +654,7 @@ function clearDetailPdf() {
 function closeModal(modalId) {
     document.getElementById(modalId).classList.add('hidden');
     if (modalId === 'detail-modal') clearDetailPdf();
+    if (modalId === 'reject-modal') pendingRejectionId = null;
 }
 
 function showToast(message) {

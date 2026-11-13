@@ -297,6 +297,27 @@
         </div>
     </div>
 
+    <!-- MODAL: Enter rejection reason -->
+    <div id="reject-modal" class="fixed inset-0 z-[60] bg-stone-900/40 backdrop-blur-xs hidden flex items-center justify-center p-4">
+        <div class="bg-white rounded-3xl shadow-xl max-w-lg w-full overflow-hidden border border-stone-200/60">
+            <div class="bg-amber-50/80 px-6 py-4 border-b border-amber-100 flex items-center justify-between">
+                <h3 class="text-base font-bold text-amber-900">退回稿件</h3>
+                <button type="button" onclick="closeModal('reject-modal')" aria-label="關閉退回原因視窗" class="text-stone-400 hover:text-stone-600 p-1.5 rounded-xl hover:bg-white/70 transition">
+                    <i data-lucide="x" class="w-4 h-4"></i>
+                </button>
+            </div>
+            <form id="reject-form" onsubmit="handleRejectSubmit(event)" class="p-6 space-y-4">
+                <label for="reject-reason" class="block text-sm font-semibold text-stone-700">請填寫退回原因</label>
+                <textarea id="reject-reason" required maxlength="2000" rows="5" class="w-full bg-stone-50 border border-stone-200 rounded-2xl p-4 text-sm text-stone-800 focus:ring-2 focus:ring-amber-600/20 focus:border-amber-600 outline-none transition" placeholder="說明需要修改或補充的地方"></textarea>
+                <p id="reject-reason-error" class="hidden text-sm text-rose-600" role="alert"></p>
+                <div class="flex justify-end gap-3 pt-2">
+                    <button type="button" onclick="closeModal('reject-modal')" class="px-5 py-2.5 border border-stone-200 rounded-2xl text-xs font-medium text-stone-600 hover:bg-stone-50 transition">取消</button>
+                    <button type="submit" class="px-5 py-2.5 bg-amber-700 hover:bg-amber-800 text-white rounded-2xl text-xs font-medium transition">確認退回</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
     <!-- MODAL: View Detail / Review -->
     <div id="detail-modal" class="fixed inset-0 z-50 bg-stone-900/30 backdrop-blur-xs hidden flex items-center justify-center p-4">
         <div class="bg-white rounded-3xl shadow-xl max-w-3xl w-full overflow-hidden border border-stone-200/60 transform transition-all max-h-[90vh] flex flex-col">

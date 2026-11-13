@@ -82,6 +82,7 @@ class Submission(SQLModel, table=True):
     status: str = "編輯中"
     author_name: str = Field(default="一般作者", max_length=80)
     attachment_filename: Optional[str] = Field(default=None, max_length=255)
+    return_reason: Optional[str] = None
     owner_id: Optional[int] = Field(default=None, foreign_key="account.id")
     updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
@@ -205,6 +206,10 @@ def on_startup():
                     "ALTER TABLE submission ADD COLUMN "
                     "attachment_filename VARCHAR(255)"
                 )
+            )
+        if "return_reason" not in columns:
+            connection.execute(
+                text("ALTER TABLE submission ADD COLUMN return_reason TEXT")
             )
 
 
@@ -436,7 +441,8 @@ def submit_review(
 @app.post("/api/submissions/{sub_id}/review")
 def review_submission(
     sub_id: int,
-    action: str = Query(...),  # ✅ 明確指定從 Query 參數接收
+    action: Literal["approve", "reject"] = Query(...),
+    reason: Optional[str] = Query(default=None, max_length=2000),
     session: Session = Depends(get_session),
     account: Account = Depends(get_current_user),
 ):
@@ -447,10 +453,13 @@ def review_submission(
 
     if action == "approve":
         sub.status = "已通過"
-    elif action == "reject":
-        sub.status = "編輯中"
+        sub.return_reason = None
     else:
-        raise HTTPException(status_code=400, detail="無效的操作")
+        normalized_reason = reason.strip() if reason else ""
+        if not normalized_reason:
+            raise HTTPException(status_code=422, detail="請填寫退回原因")
+        sub.status = "編輯中"
+        sub.return_reason = normalized_reason
 
     sub.updated_at = datetime.now(timezone.utc)
     session.add(sub)
