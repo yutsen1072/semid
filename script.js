@@ -22,11 +22,13 @@ function setAuthMode(mode) {
     const isRegister = mode === 'register';
     const displayNameField = document.getElementById('auth-display-name-field');
     const displayNameInput = document.getElementById('auth-display-name');
+    const usernameInput = document.getElementById('auth-username');
     const passwordInput = document.getElementById('auth-password');
     const roleSelect = document.getElementById('auth-role');
 
     displayNameField.classList.toggle('hidden', !isRegister);
     displayNameInput.required = isRegister;
+    usernameInput.placeholder = isRegister ? '請設定使用者名稱' : '請輸入使用者名稱';
     displayNameInput.placeholder =
         roleSelect.value === 'author' ? '請輸入作者名稱' : '請輸入編輯名稱';
     passwordInput.autocomplete = isRegister ? 'new-password' : 'current-password';
@@ -195,6 +197,13 @@ async function fetchSubmissions() {
     }
 }
 
+function getStatusBadgeClass(status) {
+    if (status === '編輯中') return 'bg-amber-700 text-white border-amber-700';
+    if (status === '審查中') return 'bg-sky-700 text-white border-sky-700';
+    if (status === '已通過') return 'bg-emerald-700 text-white border-emerald-700';
+    return 'bg-stone-700 text-white border-stone-700';
+}
+
 // Render Author List
 function renderAuthorList() {
     const statusFilter = document.getElementById('author-status-filter').value;
@@ -219,10 +228,7 @@ function renderAuthorList() {
 
     emptyEl.classList.add('hidden');
     tbody.innerHTML = filtered.map(art => {
-        let badgeClass = '';
-        if (art.status === '編輯中') badgeClass = 'bg-amber-50 text-amber-800 border-amber-200/60';
-        else if (art.status === '審查中') badgeClass = 'bg-sky-50 text-sky-800 border-sky-200/60';
-        else if (art.status === '已通過') badgeClass = 'bg-emerald-50 text-emerald-800 border-emerald-200/60';
+        const badgeClass = getStatusBadgeClass(art.status);
 
         return `
             <tr class="hover:bg-stone-50/50 transition-colors">
@@ -565,7 +571,9 @@ function openDetailModal(id) {
     document.getElementById('detail-title').innerText = art.title;
     document.getElementById('detail-author').innerText = art.author_name || '一般作者';
     document.getElementById('detail-category-badge').innerText = art.category;
-    document.getElementById('detail-status-badge').innerText = art.status;
+    const statusBadge = document.getElementById('detail-status-badge');
+    statusBadge.innerText = art.status;
+    statusBadge.className = `px-3 py-1 text-xs font-semibold rounded-full border ${getStatusBadgeClass(art.status)}`;
     document.getElementById('detail-date').innerText = art.updated_at ? art.updated_at.replace('T', ' ').substring(0, 16) : '-';
     document.getElementById('detail-content').innerText = art.content;
     const reasonContainer = document.getElementById('detail-return-reason');
