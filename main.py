@@ -14,6 +14,9 @@ from pydantic import BaseModel, Field as PydanticField
 from sqlalchemy import inspect, text
 from sqlmodel import Field, Session, SQLModel, create_engine, select
 
+# 後端伺服器
+
+#啟動FastAPI，並設定前端網頁跨域呼叫API
 app = FastAPI(title="投稿與審查系統 API")
 
 app.add_middleware(
@@ -23,7 +26,7 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
+ #連接資料庫，並設定PDF檔的存放路徑
 def get_database_url() -> str:
     database_url = os.getenv("DATABASE_URL")
     if database_url:
@@ -55,6 +58,7 @@ MAX_PDF_SIZE = 25 * 1024 * 1024
 bearer_scheme = HTTPBearer(auto_error=False)
 
 
+#定義資料表與輸入格式
 class Account(SQLModel, table=True):
     __tablename__ = "account"
 
@@ -64,7 +68,7 @@ class Account(SQLModel, table=True):
     role: str = Field(max_length=10)
     password_hash: str
 
-
+#使用者登入狀態
 class AuthSession(SQLModel, table=True):
     __tablename__ = "auth_session"
 
@@ -73,7 +77,7 @@ class AuthSession(SQLModel, table=True):
     token_hash: str = Field(unique=True, index=True)
     expires_at: datetime
 
-
+ #稿件資料表，用來儲存相關內容與狀態
 class Submission(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     title: str
@@ -87,30 +91,33 @@ class Submission(SQLModel, table=True):
     updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 
+#檢查前端呼叫註冊API的資料格式是否合法
 class RegisterRequest(BaseModel):
     username: str = PydanticField(min_length=1, max_length=50)
     display_name: str = PydanticField(min_length=1, max_length=80)
     password: str = PydanticField(min_length=8)
     role: Literal["author", "editor"]
 
-
+#登入API的資料檢查
 class LoginRequest(BaseModel):
     username: str = PydanticField(min_length=1, max_length=50)
     password: str = PydanticField(min_length=8)
     role: Literal["author", "editor"]
 
-
+#定義前端允許使用者在稿件編輯的時候傳送資料的格式欄位
 class SubmissionInput(BaseModel):
     title: str
     category: str
     content: str
 
+#安全性與身份驗證
 
+#資料庫連線依賴，負責安全開啟、提供與關閉資料庫連線
 def get_session():
     with Session(engine) as session:
         yield session
 
-
+#密碼加鹽雜湊，RegisterRequest送出明文password時，呼叫此函數將密碼安全存入資料表
 def hash_password(password: str) -> str:
     salt = secrets.token_bytes(16)
     password_digest = hashlib.pbkdf2_hmac(
@@ -118,7 +125,7 @@ def hash_password(password: str) -> str:
     )
     return f"{salt.hex()}:{password_digest.hex()}"
 
-
+#驗證密碼
 def verify_password(password: str, password_hash: str) -> bool:
     try:
         salt_hex, digest_hex = password_hash.split(":", maxsplit=1)
@@ -132,7 +139,7 @@ def verify_password(password: str, password_hash: str) -> bool:
     )
     return hmac.compare_digest(actual_digest, expected_digest)
 
-
+#回應資料過濾，把資料庫撈出來的物件整理成乾淨、安全的python字典，回傳給前端
 def account_response(account: Account) -> dict:
     return {
         "id": account.id,
@@ -141,7 +148,7 @@ def account_response(account: Account) -> dict:
         "role": account.role,
     }
 
-
+#串接前面的認證組件，在註冊或登入時核發數位通行證，並寫入資料庫
 def create_auth_session(account: Account, session: Session) -> dict:
     token = secrets.token_urlsafe(32)
     auth_session = AuthSession(
